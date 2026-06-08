@@ -12,8 +12,17 @@ Get-ChildItem -Path $Root -Recurse -Filter SKILL.md -ErrorAction SilentlyContinu
     $name = if ($line) { $line.Matches[0].Groups[1].Value.Trim() } else { Split-Path $_.Directory -Leaf }
     $target = Join-Path $Dest $name
     New-Item -ItemType Directory -Force -Path $target | Out-Null
+    # APPEND-ONLY LESSONS STANDARD: preserve the customer's accumulated lessons across the copy.
+    foreach ($L in 'lessons.jsonl','LESSONS.md') {
+      $cf = Join-Path $target $L; if (Test-Path $cf) { Copy-Item -Force $cf (Join-Path $target ".cust.$L") }
+    }
     Copy-Item -Recurse -Force -Path (Join-Path $_.Directory '*') -Destination $target
-    Write-Host "  [skill] registered: $name"
+    foreach ($L in 'lessons.jsonl','LESSONS.md') {
+      $sf = Join-Path $target ".cust.$L"; if (Test-Path $sf) { Move-Item -Force $sf (Join-Path $target $L) }
+    }
+    $py2 = if (Get-Command python -ErrorAction SilentlyContinue) { 'python' } else { 'python3' }
+    $merge = Join-Path $target 'vp_lessons_merge.py'; if (Test-Path $merge) { & $py2 $merge --dir $target 2>$null | Out-Null }
+    Write-Host "  [skill] registered: $name (customer lessons preserved + baseline merged)"
     $n++
   }
 if ($n -eq 0) { Write-Host "[register-skills] no SKILL.md in this repo (nothing to register)" }
